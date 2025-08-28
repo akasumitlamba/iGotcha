@@ -18,9 +18,9 @@
 ---
 
 ## ▶️ Run Instructions
-
+ Download the exe file from [Here](https://github.com/akasumitlamba/iGotcha/releases/download/v1.0/iGotcha.exe)
 - Windows:  
-  Double-click `iGotcha.exe` in the `dist/` folder.  
+  Double-click `iGotcha.exe`
 
 - Python (optional):  
   python igotcha.py
