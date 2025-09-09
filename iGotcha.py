@@ -6,8 +6,6 @@ import random
 import pyautogui
 import sys
 import os
-
-
 class MouseMover:
     def __init__(self):
         self.running = False
