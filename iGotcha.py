@@ -6,21 +6,25 @@ import random
 import pyautogui
 import sys
 import os
+
 class MouseMover:
     def __init__(self):
         self.running = False
         self.interval = 120
         self.thread = None
+        self.stop_event = threading.Event()
 
     def start(self, interval):
         if not self.running:
             self.interval = interval
             self.running = True
+            self.stop_event.clear()
             self.thread = threading.Thread(target=self.run, daemon=True)
             self.thread.start()
 
     def stop(self):
         self.running = False
+        self.stop_event.set()
 
     def run(self):
         screen_width, screen_height = pyautogui.size()
@@ -32,7 +36,12 @@ class MouseMover:
 
         while self.running:
             try:
-                time.sleep(self.interval)
+                # Use wait() instead of sleep() so we can be interrupted
+                if self.stop_event.wait(self.interval):
+                    break  # Stop was requested
+                
+                if not self.running:
+                    break
 
                 # pick random safe target inside 50% zone
                 target_x = random.randint(x_min, x_max)
@@ -111,6 +120,9 @@ class App:
         exit_btn = ttk.Button(root, text="Exit iGotcha", command=self.exit_app)
         exit_btn.pack(pady=5)
 
+        # Handle window close event
+        self.root.protocol("WM_DELETE_WINDOW", self.exit_app)
+
     def toggle(self):
         if not self.mover.running:
             interval = self.interval_var.get()
@@ -127,7 +139,11 @@ class App:
 
     def exit_app(self):
         self.mover.stop()
+        # Give the thread a moment to stop gracefully
+        if self.mover.thread and self.mover.thread.is_alive():
+            self.mover.thread.join(timeout=1.0)
         self.root.quit()
+        self.root.destroy()
 
 
 if __name__ == "__main__":
