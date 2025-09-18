@@ -4,7 +4,7 @@
 
 ---
 
-## 🔧 Build Instructions
+## 🔧 Build Instructions- For Devs
 
 1. Install requirements:
    pip install pyautogui pyinstaller
@@ -17,17 +17,13 @@
 
 ---
 
-## ▶️ Run Instructions
+## ▶️ Run Instructions- For Users
  Download the exe file from [Here](https://github.com/akasumitlamba/iGotcha/releases/download/v1.0/iGotcha.exe)
 - Windows:  
   Double-click `iGotcha.exe`
 
 If you get windows Security warning, Click on Run anyways.
 
-- Python (optional):  
-  python igotcha.py
-
-  
 ---
 
 ✨ That’s it. Good Luck
