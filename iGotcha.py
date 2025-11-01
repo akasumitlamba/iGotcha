@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
-import time
 import random
 import pyautogui
 import sys
@@ -15,8 +14,8 @@ class MouseMover:
         self.stop_event = threading.Event()
 
     def start(self, interval):
+        self.interval = interval
         if not self.running:
-            self.interval = interval
             self.running = True
             self.stop_event.clear()
             self.thread = threading.Thread(target=self.run, daemon=True)
@@ -28,7 +27,6 @@ class MouseMover:
 
     def run(self):
         screen_width, screen_height = pyautogui.size()
-        # central 50% bounds
         x_min = int(screen_width * 0.25)
         x_max = int(screen_width * 0.75)
         y_min = int(screen_height * 0.25)
@@ -36,99 +34,96 @@ class MouseMover:
 
         while self.running:
             try:
-                # Use wait() instead of sleep() so we can be interrupted
                 if self.stop_event.wait(self.interval):
-                    break  # Stop was requested
-                
+                    break
+
                 if not self.running:
                     break
 
-                # pick random safe target inside 50% zone
                 target_x = random.randint(x_min, x_max)
                 target_y = random.randint(y_min, y_max)
-
-                # get current position
                 curr_x, curr_y = pyautogui.position()
-
-                # limit movement to ~150 px
-                dx = target_x - curr_x
-                dy = target_y - curr_y
-                dist = (dx**2 + dy**2) ** 0.5
+                dx, dy = target_x - curr_x, target_y - curr_y
+                dist = (dx ** 2 + dy ** 2) ** 0.5
                 if dist > 150:
                     scale = 150 / dist
                     target_x = int(curr_x + dx * scale)
                     target_y = int(curr_y + dy * scale)
-
-                # clamp strictly to 50% zone
                 target_x = max(x_min, min(x_max, target_x))
                 target_y = max(y_min, min(y_max, target_y))
-
-                # smooth human-like movement
                 duration = random.uniform(0.6, 1.2)
                 pyautogui.moveTo(target_x, target_y, duration=duration)
-
             except Exception as e:
-                print("Error in mouse movement:", e)
-                continue
-
+                # Show popup and break loop on error
+                messagebox.showerror("MouseMover Error", f"Error in mouse movement: {e}")
+                self.stop()
+                break
 
 class App:
     def __init__(self, root):
         self.root = root
         self.root.title("iGotcha - Stay Active")
-        self.root.geometry("320x200")
+        self.root.geometry("340x220")
         self.root.resizable(False, False)
 
-        # --- ICON FIX ---
-        if getattr(sys, 'frozen', False):  # Running from PyInstaller bundle
+        icon_path = self._find_icon_path()
+        if icon_path:
+            try:
+                self.root.iconbitmap(icon_path)
+            except Exception:
+                # silently ignore if failed
+                pass
+
+        self.mover = MouseMover()
+        self._build_ui()
+
+        self.root.protocol("WM_DELETE_WINDOW", self.exit_app)
+
+    def _find_icon_path(self):
+        if getattr(sys, 'frozen', False):
             base_path = sys._MEIPASS
         else:
             base_path = os.path.abspath(".")
         icon_path = os.path.join(base_path, "igotcha.ico")
+        return icon_path if os.path.exists(icon_path) else None
 
-        try:
-            self.root.iconbitmap(icon_path)
-        except Exception as e:
-            print("Could not set icon:", e)
-
-        # Mouse mover logic
-        self.mover = MouseMover()
-
-        # Styling
+    def _build_ui(self):
         style = ttk.Style()
         style.configure("TButton", padding=6, font=("Segoe UI", 10))
         style.configure("TLabel", font=("Segoe UI", 10))
         style.configure("TEntry", font=("Segoe UI", 10))
 
-        # Interval Input
-        ttk.Label(root, text="Move Interval (seconds):").pack(pady=10)
+        ttk.Label(self.root, text="Move Interval (seconds):").pack(pady=10)
         self.interval_var = tk.IntVar(value=120)
         self.interval_spin = ttk.Spinbox(
-            root, from_=10, to=3600, textvariable=self.interval_var, width=10
+            self.root, from_=10, to=3600, textvariable=self.interval_var, width=10
         )
         self.interval_spin.pack(pady=5)
+        self.interval_spin.bind("<FocusOut>", self._validate_interval)
 
-        # Start/Stop button
-        self.toggle_btn = ttk.Button(root, text="Start", command=self.toggle)
+        self.toggle_btn = ttk.Button(self.root, text="Start", command=self.toggle)
         self.toggle_btn.pack(pady=15)
 
-        # Status
-        self.status_label = ttk.Label(root, text="Status: Idle")
+        self.status_label = ttk.Label(self.root, text="Status: Idle")
         self.status_label.pack(pady=10)
 
-        # Exit button
-        exit_btn = ttk.Button(root, text="Exit iGotcha", command=self.exit_app)
+        exit_btn = ttk.Button(self.root, text="Exit iGotcha", command=self.exit_app)
         exit_btn.pack(pady=5)
 
-        # Handle window close event
-        self.root.protocol("WM_DELETE_WINDOW", self.exit_app)
+    def _validate_interval(self, event=None):
+        try:
+            val = self.interval_var.get()
+            if val < 10:
+                self.interval_var.set(10)
+                messagebox.showinfo("Info", "Minimum interval is 10 seconds.")
+        except Exception:
+            self.interval_var.set(10)
+            messagebox.showerror("Error", "Interval must be an integer.")
 
     def toggle(self):
+        interval = self.interval_var.get()
+        self._validate_interval()
         if not self.mover.running:
-            interval = self.interval_var.get()
-            if interval < 10:
-                messagebox.showwarning("Invalid", "Interval must be at least 10 seconds.")
-                return
             self.mover.start(interval)
             self.toggle_btn.config(text="Stop")
             self.status_label.config(text=f"Status: Running every {interval}s")
@@ -139,12 +134,10 @@ class App:
 
     def exit_app(self):
         self.mover.stop()
-        # Give the thread a moment to stop gracefully
         if self.mover.thread and self.mover.thread.is_alive():
             self.mover.thread.join(timeout=1.0)
         self.root.quit()
         self.root.destroy()
-
 
 if __name__ == "__main__":
     root = tk.Tk()
