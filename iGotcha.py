@@ -5,6 +5,12 @@ import random
 import pyautogui
 import sys
 import os
+# --- Ensure custom taskbar icon on Windows ---
+if sys.platform == "win32":
+    import ctypes
+    myappid = 'igotcha.app'  # arbitrary string — used as Windows AppUserModelID
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
 
 class MouseMover:
     def __init__(self):
@@ -36,10 +42,6 @@ class MouseMover:
             try:
                 if self.stop_event.wait(self.interval):
                     break
-
-                if not self.running:
-                    break
-
                 target_x = random.randint(x_min, x_max)
                 target_y = random.randint(y_min, y_max)
                 curr_x, curr_y = pyautogui.position()
@@ -49,21 +51,19 @@ class MouseMover:
                     scale = 150 / dist
                     target_x = int(curr_x + dx * scale)
                     target_y = int(curr_y + dy * scale)
-                target_x = max(x_min, min(x_max, target_x))
-                target_y = max(y_min, min(y_max, target_y))
                 duration = random.uniform(0.6, 1.2)
                 pyautogui.moveTo(target_x, target_y, duration=duration)
             except Exception as e:
-                # Show popup and break loop on error
                 messagebox.showerror("MouseMover Error", f"Error in mouse movement: {e}")
                 self.stop()
                 break
 
+
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("iGotcha - Stay Active")
-        self.root.geometry("340x220")
+        self.root.title("iGotcha - Stay Active 🖱️")
+        self.root.geometry("360x250")
         self.root.resizable(False, False)
 
         icon_path = self._find_icon_path()
@@ -71,12 +71,11 @@ class App:
             try:
                 self.root.iconbitmap(icon_path)
             except Exception:
-                # silently ignore if failed
                 pass
 
         self.mover = MouseMover()
+        self._set_theme()
         self._build_ui()
-
         self.root.protocol("WM_DELETE_WINDOW", self.exit_app)
 
     def _find_icon_path(self):
@@ -87,28 +86,35 @@ class App:
         icon_path = os.path.join(base_path, "igotcha.ico")
         return icon_path if os.path.exists(icon_path) else None
 
-    def _build_ui(self):
+    def _set_theme(self):
         style = ttk.Style()
-        style.configure("TButton", padding=6, font=("Segoe UI", 10))
-        style.configure("TLabel", font=("Segoe UI", 10))
-        style.configure("TEntry", font=("Segoe UI", 10))
+        style.theme_use("clam")
+        style.configure("TFrame", background="#1e1e2f")
+        style.configure("TLabel", background="#1e1e2f", foreground="white", font=("Segoe UI", 10))
+        style.configure("TButton", background="#0078D7", foreground="white",
+                        font=("Segoe UI", 10, "bold"), padding=8)
+        style.map("TButton", background=[("active", "#005a9e")])
+        style.configure("TSpinbox", fieldbackground="#2d2d44", foreground="white")
 
-        ttk.Label(self.root, text="Move Interval (seconds):").pack(pady=10)
+    def _build_ui(self):
+        frame = ttk.Frame(self.root, padding=20)
+        frame.pack(expand=True, fill="both")
+
+        ttk.Label(frame, text="💤 Move Interval (seconds):").pack(pady=10)
         self.interval_var = tk.IntVar(value=120)
         self.interval_spin = ttk.Spinbox(
-            self.root, from_=10, to=3600, textvariable=self.interval_var, width=10
+            frame, from_=10, to=3600, textvariable=self.interval_var, width=10, justify="center"
         )
         self.interval_spin.pack(pady=5)
         self.interval_spin.bind("<FocusOut>", self._validate_interval)
 
-        self.toggle_btn = ttk.Button(self.root, text="Start", command=self.toggle)
-        self.toggle_btn.pack(pady=15)
+        self.toggle_btn = ttk.Button(frame, text="▶️ Start", command=self.toggle)
+        self.toggle_btn.pack(pady=15, ipadx=8, ipady=4)
 
-        self.status_label = ttk.Label(self.root, text="Status: Idle")
+        self.status_label = ttk.Label(frame, text="Status: Idle")
         self.status_label.pack(pady=10)
 
-        exit_btn = ttk.Button(self.root, text="Exit iGotcha", command=self.exit_app)
-        exit_btn.pack(pady=5)
+        ttk.Button(frame, text="❌ Exit iGotcha", command=self.exit_app).pack(pady=10, ipadx=6)
 
     def _validate_interval(self, event=None):
         try:
@@ -125,11 +131,11 @@ class App:
         self._validate_interval()
         if not self.mover.running:
             self.mover.start(interval)
-            self.toggle_btn.config(text="Stop")
+            self.toggle_btn.config(text="⏹ Stop")
             self.status_label.config(text=f"Status: Running every {interval}s")
         else:
             self.mover.stop()
-            self.toggle_btn.config(text="Start")
+            self.toggle_btn.config(text="▶️ Start")
             self.status_label.config(text="Status: Stopped")
 
     def exit_app(self):
@@ -138,6 +144,7 @@ class App:
             self.mover.thread.join(timeout=1.0)
         self.root.quit()
         self.root.destroy()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
